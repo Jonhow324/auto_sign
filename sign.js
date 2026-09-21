@@ -80,17 +80,22 @@ function responseMessage(result) {
 }
 
 async function signWorkBuddy(config) {
+  // token 必须来自 VS Code 官方 CodeBuddy 扩展（tencent-cloud.coding-copilot）的登录态，
+  // CodeBuddy CN IDE 的 planning-genie 离线 token 会被 workbuddy.cn 网关 401 拒绝
   const token = required(config, 'WORKBUDDY_ACCESS_TOKEN');
-  const uid = required(config, 'WORKBUDDY_UID');
   const headers = {
     Authorization: `Bearer ${token}`,
-    'X-User-Id': String(uid)
+    Accept: 'application/json',
+    Origin: 'https://www.workbuddy.cn',
+    Referer: 'https://www.workbuddy.cn/profile/plans-usage',
+    'x-client-platform': 'web'
   };
-  const base = 'https://www.codebuddy.cn';
+  // 注意：签到接口在 workbuddy.cn（不是 codebuddy.cn），且无 /v2 前缀
+  const base = 'https://www.workbuddy.cn';
 
   const status = await request(
     'POST',
-    `${base}/v2/billing/meter/checkin-activity-status`,
+    `${base}/billing/meter/checkin-status`,
     headers
   );
   if (status.error || status.json?.code !== 0) {
@@ -102,7 +107,7 @@ async function signWorkBuddy(config) {
 
   const claim = await request(
     'POST',
-    `${base}/v2/billing/meter/daily-checkin`,
+    `${base}/billing/meter/daily-checkin`,
     headers
   );
   if (claim.json?.code === 0) {
