@@ -198,6 +198,11 @@ async function runWithOneRetry(name, action) {
   return false;
 }
 
+const PLATFORMS = {
+  workbuddy: { name: 'WorkBuddy', fn: signWorkBuddy },
+  qoder: { name: 'Qoder', fn: signQoder }
+};
+
 async function main() {
   let config;
   try {
@@ -208,11 +213,25 @@ async function main() {
     return;
   }
 
-  writeLog('开始执行签到');
-  const results = await Promise.all([
-    runWithOneRetry('WorkBuddy', () => signWorkBuddy(config)),
-    runWithOneRetry('Qoder', () => signQoder(config))
-  ]);
+  const args = process.argv.slice(2).map(a => a.toLowerCase());
+  const targets = args.length > 0
+    ? args.map(a => {
+        const p = PLATFORMS[a];
+        if (!p) {
+          console.error(`未知平台: ${a}，可选: ${Object.keys(PLATFORMS).join(', ')}`);
+          process.exitCode = 1;
+          return null;
+        }
+        return p;
+      }).filter(Boolean)
+    : Object.values(PLATFORMS);
+
+  if (targets.length === 0) return;
+
+  writeLog(`开始执行签到 (${targets.map(t => t.name).join(', ')})`);
+  const results = await Promise.all(
+    targets.map(t => runWithOneRetry(t.name, () => t.fn(config)))
+  );
   const success = results.every(Boolean);
   writeLog(success ? '本次签到执行完成' : '本次签到存在失败平台');
   process.exitCode = success ? 0 : 1;
