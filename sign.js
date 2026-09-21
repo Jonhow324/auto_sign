@@ -41,17 +41,19 @@ function required(config, key) {
 function request(method, url, headers = {}, body = {}) {
   return new Promise((resolve) => {
     const target = new URL(url);
-    const payload = Buffer.from(JSON.stringify(body));
+    const isGet = method === 'GET';
+    const payload = isGet ? null : Buffer.from(JSON.stringify(body));
+    const reqHeaders = { ...headers };
+    if (!isGet) {
+      reqHeaders['Content-Type'] = 'application/json';
+      reqHeaders['Content-Length'] = payload.length;
+    }
     const req = https.request({
       hostname: target.hostname,
       port: target.port || 443,
       path: target.pathname + target.search,
       method,
-      headers: {
-        ...headers,
-        'Content-Type': 'application/json',
-        'Content-Length': payload.length
-      }
+      headers: reqHeaders
     }, (res) => {
       const chunks = [];
       res.on('data', (chunk) => chunks.push(chunk));
@@ -65,7 +67,7 @@ function request(method, url, headers = {}, body = {}) {
 
     req.on('error', (error) => resolve({ error: error.message }));
     req.setTimeout(REQUEST_TIMEOUT_MS, () => req.destroy(new Error('请求超时')));
-    if (method === 'GET') req.end();
+    if (isGet) req.end();
     else {
       req.write(payload);
       req.end();
