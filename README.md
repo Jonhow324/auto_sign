@@ -41,12 +41,9 @@ node get-workbuddy-token.js
 
 ```
 accessToken: eyJhbGciOiJSUzI1NiIs...
-uid: 2bd876f8-0263-4ca9-99ff-c0d63747f5a4
 ```
 
-将输出的值填入 `.env`：
-- `WORKBUDDY_ACCESS_TOKEN` - JWT token
-- `WORKBUDDY_UID` - 用户 ID
+将输出的 token 填入 `.env` 的 `WORKBUDDY_ACCESS_TOKEN`。
 
 **重要**：
 - 必须使用 VS Code 官方 CodeBuddy 扩展（tencent-cloud.coding-copilot）的登录态；CodeBuddy CN IDE 的离线 token 会被 workbuddy.cn 网关 401 拒绝

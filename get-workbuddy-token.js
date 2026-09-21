@@ -28,7 +28,6 @@ const CB_ROOT = resolveProfileRoot(
     'Local State'
   ]
 );
-const CB_STORAGE = path.join(CB_ROOT, 'User', 'globalStorage', 'storage.json');
 const CB_VSCDB = path.join(CB_ROOT, 'User', 'globalStorage', 'state.vscdb');
 const CB_LOCAL_STATE = path.join(CB_ROOT, 'Local State');
 
@@ -194,34 +193,24 @@ function readWorkBuddy() {
   console.log(plain);
 
   let accessToken = '';
-  let uid = '';
   try {
     const j = JSON.parse(plain);
     accessToken = j?.auth?.accessToken || j?.accessToken || j?.token || '';
-    uid = j?.account?.uid || j?.account?.id || '';
   } catch {}
-
-  if (!uid) {
-    try {
-      uid = JSON.parse(fs.readFileSync(CB_STORAGE, 'utf8'))['genie.userId'] || '';
-    } catch {}
-  }
 
   if (!accessToken) throw new Error('未找到 accessToken');
 
   console.log('\n================ 结果 ================');
   console.log('accessToken:', accessToken);
-  console.log('uid:', uid);
   console.log('accessToken 长度:', accessToken.length);
 
-  return { accessToken, uid };
+  return { accessToken };
 }
 
 try {
   const result = readWorkBuddy();
   console.log('\n✅ 成功！把上面的值填到 .env：');
   console.log('   WORKBUDDY_ACCESS_TOKEN=' + result.accessToken);
-  console.log('   WORKBUDDY_UID=' + result.uid);
 } catch (e) {
   console.error('\n❌ 失败:', e.message);
   process.exitCode = 1;
