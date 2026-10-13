@@ -184,6 +184,7 @@ function readQoder() {
   const aesKey = dpapiDecrypt(encKeyRaw.subarray(5));
 
   let accessToken = '';
+  let refreshToken = '';
   for (const secretKey of QODER_SECRET_KEYS) {
     const hit = rows.find(r => r.key === secretKey);
     if (!hit) {
@@ -201,6 +202,7 @@ function readQoder() {
       const direct = j.token || j.accessToken || j.access_token || j.jwt || j.bearer
         || (j.auth && (j.auth.accessToken || j.auth.token)) || '';
       if (typeof direct === 'string' && direct) accessToken = direct;
+      if (typeof j.refreshToken === 'string' && j.refreshToken) refreshToken = j.refreshToken;
     } catch {}
   }
 
@@ -215,12 +217,19 @@ function readQoder() {
   console.log('\n================ 结果 ================');
   console.log('accessToken:', accessToken);
   console.log('长度:', accessToken.length);
-  return accessToken;
+  if (refreshToken) {
+    console.log('refreshToken:', refreshToken);
+    console.log('refreshToken 长度:', refreshToken.length);
+  }
+  return { accessToken, refreshToken };
 }
 
 try {
-  const token = readQoder();
-  console.log('\n✅ 成功！把上面的 accessToken 填到 .env 的 QODER_ACCESS_TOKEN 即可');
+  const { accessToken, refreshToken } = readQoder();
+  console.log('\n✅ 成功！');
+  console.log('把下面的值填到 .env:');
+  console.log(`QODER_ACCESS_TOKEN=${accessToken}`);
+  if (refreshToken) console.log(`QODER_REFRESH_TOKEN=${refreshToken}`);
 } catch (e) {
   console.error('\n❌ 失败:', e.message);
   process.exitCode = 1;

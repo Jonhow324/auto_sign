@@ -123,8 +123,49 @@ async function signWorkBuddy(config) {
   return { ok: false, message: responseMessage(claim) };
 }
 
+function saveEnvUpdate(key, value) {
+  const text = fs.readFileSync(ENV_FILE, 'utf8');
+  const lines = text.split(/\r?\n/);
+  let found = false;
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (trimmed.startsWith(key + '=')) {
+      lines[i] = `${key}=${value}`;
+      found = true;
+      break;
+    }
+  }
+  if (!found) lines.push(`${key}=${value}`);
+  fs.writeFileSync(ENV_FILE, lines.join('\n') + '\n', 'utf8');
+}
+
+async function refreshQoderToken(config) {
+  const refreshToken = config['QODER_REFRESH_TOKEN'];
+  if (!refreshToken) return null;
+
+  const result = await request('POST', 'https://openapi.qoder.com.cn/api/v1/deviceToken/refresh', {}, {
+    refresh_token: refreshToken
+  });
+
+  if (result.error || !result.json || !result.json.device_token) {
+    writeLog(`[Qoder] Token 刷新失败: ${responseMessage(result)}`);
+    return null;
+  }
+
+  const newAccessToken = result.json.device_token;
+  const newRefreshToken = result.json.refresh_token;
+
+  config['QODER_ACCESS_TOKEN'] = newAccessToken;
+  config['QODER_REFRESH_TOKEN'] = newRefreshToken;
+  saveEnvUpdate('QODER_ACCESS_TOKEN', newAccessToken);
+  saveEnvUpdate('QODER_REFRESH_TOKEN', newRefreshToken);
+
+  writeLog(`[Qoder] Token 已刷新，新 token 有效期至 ${result.json.expires_at}`);
+  return newAccessToken;
+}
+
 async function signQoder(config) {
-  const token = required(config, 'QODER_ACCESS_TOKEN');
+  let token = required(config, 'QODER_ACCESS_TOKEN');
   const headers = {
     Authorization: `Bearer ${token}`,
     Accept: 'application/json',
@@ -133,14 +174,33 @@ async function signQoder(config) {
   const base = 'https://openapi.qoder.com.cn';
 
   const list = await request('GET', `${base}/sash/api/v1/me/campaigns`, headers);
+
+  if (list.json?.code === 'TOKEN_EXPIRE' || list.http === 401) {
+    writeLog('[Qoder] Token 已过期，尝试自动刷新...');
+    const newToken = await refreshQoderToken(config);
+    if (!newToken) {
+      return { ok: false, message: 'Token 已过期且刷新失败，请重新提取 QODER_ACCESS_TOKEN 和 QODER_REFRESH_TOKEN' };
+    }
+    headers.Authorization = `Bearer ${newToken}`;
+    const retry = await request('GET', `${base}/sash/api/v1/me/campaigns`, headers);
+    if (retry.error || retry.http !== 200 || !retry.json) {
+      return { ok: false, message: `刷新后重试失败: ${responseMessage(retry)}` };
+    }
+    return processQoderCampaigns(retry.json, headers, base);
+  }
+
   if (list.error || list.http !== 200 || !list.json) {
     return { ok: false, message: responseMessage(list) };
   }
-  if (list.json.claimable !== true) {
+  return processQoderCampaigns(list.json, headers, base);
+}
+
+async function processQoderCampaigns(data, headers, base) {
+  if (data.claimable !== true) {
     return { ok: true, message: '今日无待领取活动或活动未开启' };
   }
 
-  const campaigns = (list.json.campaigns || []).filter((campaign) =>
+  const campaigns = (data.campaigns || []).filter((campaign) =>
     campaign &&
     campaign.actionType === 'CLAIM_BENEFIT' &&
     campaign.claimStatus === 'CLAIMABLE'
